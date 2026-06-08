@@ -1,0 +1,24 @@
+"""Constants for AI Interface."""
+
+from pathlib import Path
+
+from appdirs import user_config_dir, user_data_dir
+from psiutils.known_paths import resolve_path
+
+# General
+AUTHOR = "Jeff Watkins"
+APP_NAME = "ai_api"  # must be package name i.e. directory under /src/
+APP_AUTHOR = "psionman"
+HTML_DIR = resolve_path("html", __file__)
+HELP_URI = ""
+
+# Paths
+CONFIG_PATH = Path(user_config_dir(APP_NAME, APP_AUTHOR), "config.toml")
+USER_DATA_DIR = user_data_dir(APP_NAME, APP_AUTHOR)
+USER_DATA_FILE = "data.json"
+HOME = str(Path.home())
+USAGE_FILE = "usage.csv"
+
+# GUI
+APP_TITLE = "AI Interface"
+ICON_FILE = Path(Path(__file__).parent, "images", "head-cog-outline.png")

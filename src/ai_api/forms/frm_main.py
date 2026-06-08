@@ -1,0 +1,281 @@
+"""AppFrame for AI Interface."""
+
+import subprocess
+import tkinter as tk
+from datetime import datetime
+from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
+
+import clipboard
+from psiutils.buttons import ButtonFrame, IconButton
+from psiutils.constants import PAD, TXT_FILE_TYPES, Pad
+from psiutils.utilities import window_resize
+from psiutils.widgets import WaitCursor
+
+from ai_api.claude import prompt_claude
+from ai_api.config import read_config
+from ai_api.constants import APP_TITLE, USER_DATA_DIR
+from ai_api.main_menu import MainMenu
+from ai_api.open_ai import prompt_chatgpt
+from ai_api.system_text import SYSTEM_PROMPTS
+from ai_api.text import Text
+
+txt = Text()
+
+FRAME_HEIGHT = 4000
+HORIZONTAL_SASH_COUNT = 1
+SEPARATOR = "=" * 75
+
+OUTPUT_DIR = Path(USER_DATA_DIR, "ai_output")
+OUTPUT_DIR.mkdir(exist_ok=True)
+QUESTION_DIR = Path(USER_DATA_DIR, "ai_input")
+QUESTION_DIR.mkdir(exist_ok=True)
+
+providers = ["Claude", "ChatGPT"]
+domains = list(SYSTEM_PROMPTS.keys())
+
+
+class AppFrame:
+    """Create AppFrame for AI Interface application."""
+
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.config = read_config()
+
+        todays_question_file = Path(
+            QUESTION_DIR, f"question_{datetime.now().strftime('%Y%m%d')}.txt"
+        )
+        # tk variables
+        self.question_file = tk.StringVar(value=todays_question_file)
+        self.provider = tk.StringVar(value="Claude")
+        self.domain = tk.StringVar(value="Technical")
+
+        self._show()
+
+    def _show(self):
+        root = self.root
+        root.geometry(self.config.geometry[Path(__file__).stem])
+        root.title(APP_TITLE)
+
+        root.bind("<Control-x>", self._dismiss)
+        root.bind("<Control-o>", self._send)
+        root.bind(
+            "<Configure>",
+            lambda event, arg=None: window_resize(self, __file__),
+        )
+
+        main_menu = MainMenu(self)
+        main_menu.create()
+
+        root.rowconfigure(0, weight=1)
+        root.columnconfigure(0, weight=1)
+
+        self.main_frame = self._main_frame(root)
+        self.main_frame.grid(
+            row=0, column=0, sticky=tk.NSEW, padx=PAD, pady=PAD
+        )
+
+        self.button_frame = self._button_frame(root)
+        self.button_frame.grid(
+            row=8, column=0, columnspan=9, sticky=tk.EW, padx=PAD, pady=PAD
+        )
+
+        sizegrip = ttk.Sizegrip(root)
+        sizegrip.grid(sticky=tk.SE)
+
+    def _main_frame(self, master: tk.Frame) -> ttk.Frame:
+        frame = ttk.Frame(master)
+        frame.columnconfigure(0, weight=1)
+
+        row = 0
+        file_frame = self._file_frame(frame)
+        file_frame.grid(row=row, column=0, sticky=tk.EW)
+
+        row += 1
+        self.domain_frame = self._domain_frame(frame)
+        self.domain_frame.grid(row=row, column=0, sticky=tk.NSEW)
+
+        row += 1
+        provider_frame = self._provider_frame(frame)
+        provider_frame.grid(row=row, column=0, sticky=tk.EW)
+
+        row += 1
+        frame.rowconfigure(row, weight=1)
+        question_frame = self._question_frame(frame)
+        question_frame.grid(row=row, column=0, sticky=tk.NSEW)
+
+        return frame
+
+    def _provider_frame(self, master: tk.Frame) -> tk.Frame:
+        frame = ttk.Frame(master, relief=tk.SUNKEN)
+
+        row = 0
+        for column, provider in enumerate(providers):
+            radio = ttk.Radiobutton(
+                frame, text=provider, variable=self.provider, value=provider
+            )
+            radio.grid(row=row, column=column, sticky=tk.E, padx=PAD, pady=PAD)
+        return frame
+
+    def _file_frame(self, master: tk.Frame) -> tk.Frame:
+        frame = ttk.Frame(master, relief=tk.SUNKEN)
+        frame.columnconfigure(1, weight=1)
+
+        row = 0
+        label = ttk.Label(frame, text="Question file")
+        label.grid(row=row, column=0, sticky=tk.E, padx=PAD, pady=PAD)
+
+        entry = ttk.Entry(frame, textvariable=self.question_file)
+        entry.grid(row=row, column=1, sticky=tk.EW)
+
+        button = IconButton(frame, txt.OPEN, "open", self._get_question_file)
+        button.grid(row=row, column=2, padx=PAD, pady=Pad.S)
+
+        button = IconButton(
+            frame, txt.CREATE, "create", self._create_question_file
+        )
+        button.grid(row=row, column=3, padx=PAD, pady=Pad.S)
+
+        return frame
+
+    def _domain_frame(self, master: tk.Frame) -> tk.PanedWindow:
+        frame = ttk.Frame(master, relief=tk.SUNKEN)
+
+        row = 0
+        for column, domain in enumerate(domains):
+            radio = ttk.Radiobutton(
+                frame, text=domain, variable=self.domain, value=domain
+            )
+            radio.grid(row=row, column=column, sticky=tk.E, padx=PAD, pady=PAD)
+        return frame
+
+    def _question_frame(self, master: tk.Frame) -> tk.Frame:
+        frame = ttk.Frame(master, relief=tk.SUNKEN)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
+        row = 0
+        self.text = tk.Text(frame, height=20)
+        self.text.grid(row=row, column=0, sticky=tk.NSEW)
+        self.text.bind("<KeyRelease>", self._value_changed)
+        self.text.bind("<Control-a>", self._select_all)
+        v_scroll = tk.Scrollbar(
+            frame, orient=tk.VERTICAL, command=self.text.yview
+        )
+        v_scroll.grid(row=row, column=1, sticky=tk.NS)
+        self.text.configure(yscrollcommand=v_scroll.set)
+
+        return frame
+
+    def _button_frame(self, master: tk.Frame) -> tk.Frame:
+        frame = ButtonFrame(master, tk.HORIZONTAL)
+        frame.buttons = [
+            frame.icon_button("send", self._send, True),
+            frame.icon_button("paste", self._paste),
+            frame.icon_button("open", self._from_file, text="From file"),
+            frame.icon_button("close", self._dismiss),
+        ]
+        frame.enable(False)
+        return frame
+
+    def _value_changed(self, *args) -> bool:
+        """
+        Determine whether any configuration value has changed.
+        """
+        text = self.text.get("0.0", tk.END).replace("\n", "")
+        enable = True if text else False
+        self.button_frame.enable(enable)
+
+    def _send(self, *args) -> None:
+        system = SYSTEM_PROMPTS[self.domain.get()]
+        prompt = self.text.get("0.0", tk.END)
+
+        try:
+            with WaitCursor(self.root):
+                response = self._get_response(system, prompt)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error: {e}")
+            return
+
+        self.save_response(prompt, response)
+        self._add_separator_to_question()
+        print("done")
+
+    def _get_response(self, system: str, prompt: str) -> str:
+        if self.provider.get() == "Claude":
+            return prompt_claude(system, prompt)
+        elif self.provider.get() == "ChatGPT":
+            return prompt_chatgpt(system, prompt)
+        else:
+            return ""
+
+    def save_response(self, prompt: str, response: str) -> None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = prompt.strip()
+        slug = f"{slug[:20]}...{slug[-20:]}"
+        slug = slug.replace(" ", "_").replace("/", "-")
+        filename = OUTPUT_DIR / f"{timestamp}_{slug}.md"
+        filename.write_text(
+            f"# Prompt\n{prompt}\n\n{SEPARATOR}\n Response\n{response}"
+            f"\n\n{SEPARATOR}\n"
+        )
+        subprocess.call(["kate", str(filename)])
+
+    def _get_question_file(self, *args) -> None:
+        initialfile = self.question_file.get()
+
+        initialdir = Path(initialfile).parent if initialfile else QUESTION_DIR
+        question_file = filedialog.askopenfilename(
+            initialdir=initialdir,
+            initialfile=initialfile,
+            filetypes=TXT_FILE_TYPES,
+        )
+        if question_file:
+            self.question_file.set(question_file)
+
+    def _paste(self, *args) -> None:
+        self.text.delete("1.0", tk.END)
+        self.text.insert("1.0", clipboard.paste())
+        self._value_changed()
+
+    def _select_all(self, event: tk.Event) -> str:
+        """Select all text in the Text widget."""
+        event.widget.tag_add("sel", "1.0", "end")
+        event.widget.mark_set("insert", "end")
+        event.widget.see("insert")
+        return "break"  # Prevents default behaviour
+
+    def _from_file(self, *args) -> None:
+        try:
+            with open(self.question_file.get()) as f_question:
+                text = self._get_last_question(f_question.read())
+        except FileNotFoundError as e:
+            messagebox.showerror("Error", f"Failed to read file: {e}")
+            text = ""
+        self.text.delete("1.0", tk.END)
+        self.text.insert("1.0", text)
+        self._value_changed()
+
+    def _get_last_question(self, text: str) -> str:
+        data = text.split("\n")
+        lastQuestion = []
+        for line in reversed(data):
+            if line == SEPARATOR:
+                break
+            lastQuestion.append(line)
+        return "\n".join(reversed(lastQuestion))
+
+    def _add_separator_to_question(self, *args) -> None:
+        with open(self.question_file.get(), "a") as f_question:
+            f_question.write(SEPARATOR + "\n")
+
+    def _create_question_file(self, *args) -> None:
+        try:
+            with open(self.question_file.get(), "w") as f_question:
+                f_question.write("")
+                subprocess.call(["kate", str(self.question_file.get())])
+        except FileNotFoundError as e:
+            messagebox.showerror("Error", f"Failed to create file: {e}")
+
+    def _dismiss(self, *args) -> None:
+        self.root.destroy()
