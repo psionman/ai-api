@@ -189,6 +189,7 @@ class AppFrame:
             frame.icon_button("send", self._send, True),
             frame.icon_button("paste", self._paste),
             frame.icon_button("open", self._from_file, text="From file"),
+            frame.icon_button("clear", self._clear),
             frame.icon_button("close", self._dismiss),
         ]
         frame.enable(False)
@@ -314,6 +315,10 @@ class AppFrame:
                 subprocess.call(["kate", str(self.question_file.get())])
         except FileNotFoundError as e:
             messagebox.showerror("Error", f"Failed to create file: {e}")
+
+    def _clear(self, *args) -> None:
+        self.text.delete("1.0", tk.END)
+        self._value_changed()
 
     def _dismiss(self, *args) -> None:
         self.root.destroy()
