@@ -18,7 +18,6 @@ def prompt_claude(system: str, prompt: str) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     usage = message.usage
-    print(f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out")
 
     usage_record = Usage(
         input=usage.input_tokens,

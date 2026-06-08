@@ -36,7 +36,6 @@ def _send_prompt(system: str, prompt: str, model: str = "gpt-4o") -> str:
         ],
     )
     usage = response.usage
-    print(f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out")
     usage_record = Usage(
         input=usage.prompt_tokens,
         output=usage.completion_tokens,

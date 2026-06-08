@@ -2,6 +2,7 @@
 
 import subprocess
 import tkinter as tk
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -15,6 +16,7 @@ from psiutils.widgets import WaitCursor
 from ai_api.claude import prompt_claude
 from ai_api.config import read_config
 from ai_api.constants import APP_TITLE, USER_DATA_DIR
+from ai_api.forms.frm_response import ResponseFrame
 from ai_api.main_menu import MainMenu
 from ai_api.open_ai import prompt_chatgpt
 from ai_api.system_text import SYSTEM_PROMPTS
@@ -32,6 +34,10 @@ QUESTION_DIR = Path(USER_DATA_DIR, "ai_input")
 QUESTION_DIR.mkdir(exist_ok=True)
 
 providers = ["Claude", "ChatGPT"]
+PROVIDER_HANDLERS: dict[str, Callable[[str, str], str]] = {
+    "Claude": prompt_claude,
+    "ChatGPT": prompt_chatgpt,
+}
 domains = list(SYSTEM_PROMPTS.keys())
 
 
@@ -154,18 +160,28 @@ class AppFrame:
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
-        row = 0
-        self.text = tk.Text(frame, height=20)
-        self.text.grid(row=row, column=0, sticky=tk.NSEW)
-        self.text.bind("<KeyRelease>", self._value_changed)
-        self.text.bind("<Control-a>", self._select_all)
-        v_scroll = tk.Scrollbar(
-            frame, orient=tk.VERTICAL, command=self.text.yview
-        )
-        v_scroll.grid(row=row, column=1, sticky=tk.NS)
-        self.text.configure(yscrollcommand=v_scroll.set)
-
+        self.text = self._create_text_widget(frame)
+        self._add_vertical_scrollbar(frame, self.text)
         return frame
+
+    def _create_text_widget(self, parent: ttk.Frame) -> tk.Text:
+        """Create and grid the main text widget."""
+        text = tk.Text(parent)
+        text.grid(row=0, column=0, sticky=tk.NSEW)
+        text.bind("<KeyRelease>", self._value_changed)
+        text.bind("<Control-a>", self._select_all)
+        return text
+
+    def _add_vertical_scrollbar(
+        self, parent: ttk.Frame, widget: tk.Text
+    ) -> tk.Scrollbar:
+        """Attach a vertical scrollbar to the given widget."""
+        scrollbar = tk.Scrollbar(
+            parent, orient=tk.VERTICAL, command=widget.yview
+        )
+        scrollbar.grid(row=0, column=1, sticky=tk.NS)
+        widget.configure(yscrollcommand=scrollbar.set)
+        return scrollbar
 
     def _button_frame(self, master: tk.Frame) -> tk.Frame:
         frame = ButtonFrame(master, tk.HORIZONTAL)
@@ -182,44 +198,66 @@ class AppFrame:
         """
         Determine whether any configuration value has changed.
         """
-        text = self.text.get("0.0", tk.END).replace("\n", "")
+        text = self.text.get("1.0", tk.END).replace("\n", "")
         enable = True if text else False
         self.button_frame.enable(enable)
 
     def _send(self, *args) -> None:
+        """Send prompt to AI provider and display response."""
         system = SYSTEM_PROMPTS[self.domain.get()]
-        prompt = self.text.get("0.0", tk.END)
+        prompt = self.text.get("1.0", tk.END)
+        file_path = self._build_file_path(prompt)
 
         try:
             with WaitCursor(self.root):
                 response = self._get_response(system, prompt)
         except Exception as e:
-            messagebox.showerror("Error", f"Error: {e}")
+            messagebox.showerror("Error", str(e))
             return
 
-        self.save_response(prompt, response)
+        self._display_response(response, file_path)
+        self._save_response(prompt, response, file_path)
         self._add_separator_to_question()
-        print("done")
+
+    def _display_response(self, response: str, file_path: Path) -> None:
+        """Create and show a response frame."""
+        frm = ResponseFrame(self)
+        frm.response.set(response)
+        frm.response_file_path = file_path
+        frm.show()
+
+    def _build_file_path(self, prompt: str) -> Path:
+        """Build a timestamped file path from the prompt."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = self._slugify(prompt.strip())
+        return OUTPUT_DIR / f"{timestamp}_{slug}.md"
+
+    @staticmethod
+    def _slugify(text: str, max_len: int = 20) -> str:
+        """Create a truncated, filesystem-safe slug."""
+        truncated = (
+            f"{text[:max_len]}...{text[-max_len:]}"
+            if len(text) > max_len * 2
+            else text
+        )
+        return truncated.replace(" ", "_").replace("/", "-")
 
     def _get_response(self, system: str, prompt: str) -> str:
-        if self.provider.get() == "Claude":
-            return prompt_claude(system, prompt)
-        elif self.provider.get() == "ChatGPT":
-            return prompt_chatgpt(system, prompt)
-        else:
-            return ""
+        """Dispatch prompt to the selected AI provider."""
+        provider = self.provider.get()
+        handler = PROVIDER_HANDLERS.get(provider)
+        if handler is None:
+            raise ValueError(f"Unknown provider: {provider}")
+        return handler(system, prompt)
 
-    def save_response(self, prompt: str, response: str) -> None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        slug = prompt.strip()
-        slug = f"{slug[:20]}...{slug[-20:]}"
-        slug = slug.replace(" ", "_").replace("/", "-")
-        filename = OUTPUT_DIR / f"{timestamp}_{slug}.md"
-        filename.write_text(
-            f"# Prompt\n{prompt}\n\n{SEPARATOR}\n Response\n{response}"
-            f"\n\n{SEPARATOR}\n"
+    def _save_response(
+        self, prompt: str, response: str, file_path: Path
+    ) -> None:
+        """Persist prompt and response to a Markdown file."""
+        file_path.write_text(
+            f"# Prompt\n{prompt}\n\n{SEPARATOR}\n"
+            f"# Response\n{response}\n\n{SEPARATOR}\n"
         )
-        subprocess.call(["kate", str(filename)])
 
     def _get_question_file(self, *args) -> None:
         initialfile = self.question_file.get()
@@ -258,12 +296,12 @@ class AppFrame:
 
     def _get_last_question(self, text: str) -> str:
         data = text.split("\n")
-        lastQuestion = []
+        last_question = []
         for line in reversed(data):
             if line == SEPARATOR:
                 break
-            lastQuestion.append(line)
-        return "\n".join(reversed(lastQuestion))
+            last_question.append(line)
+        return "\n".join(reversed(last_question))
 
     def _add_separator_to_question(self, *args) -> None:
         with open(self.question_file.get(), "a") as f_question:
