@@ -11,6 +11,7 @@ APP_NAME = "ai_api"  # must be package name i.e. directory under /src/
 APP_AUTHOR = "psionman"
 HTML_DIR = resolve_path("html", __file__)
 HELP_URI = ""
+EDITOR = "kate"
 
 # Paths
 CONFIG_PATH = Path(user_config_dir(APP_NAME, APP_AUTHOR), "config.toml")

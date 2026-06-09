@@ -5,17 +5,17 @@ import tkinter as tk
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 
 import clipboard
 from psiutils.buttons import ButtonFrame, IconButton
-from psiutils.constants import PAD, TXT_FILE_TYPES, Pad
+from psiutils.constants import PAD, Pad
 from psiutils.utilities import window_resize
 from psiutils.widgets import WaitCursor
 
 from ai_api.claude import prompt_claude
 from ai_api.config import read_config
-from ai_api.constants import APP_TITLE, USER_DATA_DIR
+from ai_api.constants import APP_TITLE, EDITOR, USER_DATA_DIR
 from ai_api.forms.frm_response import ResponseFrame
 from ai_api.main_menu import MainMenu
 from ai_api.open_ai import prompt_chatgpt
@@ -48,9 +48,7 @@ class AppFrame:
         self.root = root
         self.config = read_config()
 
-        todays_question_file = Path(
-            QUESTION_DIR, f"question_{datetime.now().strftime('%Y%m%d')}.txt"
-        )
+        todays_question_file = Path(QUESTION_DIR, "question.txt")
         # tk variables
         self.question_file = tk.StringVar(value=todays_question_file)
         self.provider = tk.StringVar(value="Claude")
@@ -137,9 +135,9 @@ class AppFrame:
         button = IconButton(frame, txt.OPEN, "open", self._get_question_file)
         button.grid(row=row, column=2, padx=PAD, pady=Pad.S)
 
-        button = IconButton(
-            frame, txt.CREATE, "create", self._create_question_file
-        )
+        # button = IconButton(
+        #     frame, txt.CREATE, "create", self._create_question_file
+        # )
         button.grid(row=row, column=3, padx=PAD, pady=Pad.S)
 
         return frame
@@ -261,16 +259,17 @@ class AppFrame:
         )
 
     def _get_question_file(self, *args) -> None:
-        initialfile = self.question_file.get()
+        # initialfile = self.question_file.get()
 
-        initialdir = Path(initialfile).parent if initialfile else QUESTION_DIR
-        question_file = filedialog.askopenfilename(
-            initialdir=initialdir,
-            initialfile=initialfile,
-            filetypes=TXT_FILE_TYPES,
-        )
-        if question_file:
-            self.question_file.set(question_file)
+        # initialdir = Path(initialfile).parent if initialfile else QUESTION_DIR
+        # question_file = filedialog.askopenfilename(
+        #     initialdir=initialdir,
+        #     initialfile=initialfile,
+        #     filetypes=TXT_FILE_TYPES,
+        # )
+        # if question_file:
+        #     self.question_file.set(question_file)
+        subprocess.call([EDITOR, str(self.question_file.get())])
 
     def _paste(self, *args) -> None:
         self.text.delete("1.0", tk.END)
@@ -308,13 +307,13 @@ class AppFrame:
         with open(self.question_file.get(), "a") as f_question:
             f_question.write(SEPARATOR + "\n")
 
-    def _create_question_file(self, *args) -> None:
-        try:
-            with open(self.question_file.get(), "w") as f_question:
-                f_question.write("")
-                subprocess.call(["kate", str(self.question_file.get())])
-        except FileNotFoundError as e:
-            messagebox.showerror("Error", f"Failed to create file: {e}")
+    # def _create_question_file(self, *args) -> None:
+    #     try:
+    #         with open(self.question_file.get(), "w") as f_question:
+    #             f_question.write("")
+    #             subprocess.call([EDITOR, str(self.question_file.get())])
+    #     except FileNotFoundError as e:
+    #         messagebox.showerror("Error", f"Failed to create file: {e}")
 
     def _clear(self, *args) -> None:
         self.text.delete("1.0", tk.END)

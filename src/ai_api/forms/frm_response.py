@@ -4,17 +4,18 @@
 
 """MainFrame for <application>."""
 
+import subprocess
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
-import subprocess
 
-from config import read_config
-from constants import APP_TITLE
-from main_menu import MainMenu
 from psiutils.buttons import ButtonFrame
 from psiutils.constants import PAD
 from psiutils.utilities import window_resize
+
+from ai_api.config import read_config
+from ai_api.constants import APP_TITLE, EDITOR
+from ai_api.main_menu import MainMenu
 
 FRAME_TITLE = APP_TITLE
 
@@ -107,7 +108,7 @@ class ResponseFrame:
 
     def _open_file(self, *args) -> None:
         if self.response_file_path:
-            subprocess.call(["kate", str(self.response_file_path)])
+            subprocess.call([EDITOR, str(self.response_file_path)])
 
     def _dismiss(self, *args) -> None:
         self.root.destroy()
