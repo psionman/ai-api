@@ -2,7 +2,6 @@
 
 import subprocess
 import tkinter as tk
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -13,12 +12,11 @@ from psiutils.constants import PAD, Pad
 from psiutils.utilities import window_resize
 from psiutils.widgets import WaitCursor
 
-from ai_api.claude import prompt_claude
 from ai_api.config import read_config
-from ai_api.constants import APP_TITLE, EDITOR, USER_DATA_DIR
+from ai_api.constants import APP_TITLE, EDITOR, OUTPUT_DIR, QUESTION_DIR
 from ai_api.forms.frm_response import ResponseFrame
 from ai_api.main_menu import MainMenu
-from ai_api.open_ai import prompt_chatgpt
+from ai_api.models import MODELS
 from ai_api.system_text import SYSTEM_PROMPTS
 from ai_api.text import Text
 
@@ -27,18 +25,6 @@ txt = Text()
 FRAME_HEIGHT = 4000
 HORIZONTAL_SASH_COUNT = 1
 SEPARATOR = "=" * 75
-
-OUTPUT_DIR = Path(USER_DATA_DIR, "ai_output")
-OUTPUT_DIR.mkdir(exist_ok=True)
-QUESTION_DIR = Path(USER_DATA_DIR, "ai_input")
-QUESTION_DIR.mkdir(exist_ok=True)
-
-providers = ["Claude", "ChatGPT"]
-PROVIDER_HANDLERS: dict[str, Callable[[str, str], str]] = {
-    "Claude": prompt_claude,
-    "ChatGPT": prompt_chatgpt,
-}
-domains = list(SYSTEM_PROMPTS.keys())
 
 
 class AppFrame:
@@ -51,7 +37,7 @@ class AppFrame:
         todays_question_file = Path(QUESTION_DIR, "question.txt")
         # tk variables
         self.question_file = tk.StringVar(value=todays_question_file)
-        self.provider = tk.StringVar(value="Claude")
+        self.model_name = tk.StringVar(value="")
         self.domain = tk.StringVar(value="Technical")
 
         self._show()
@@ -114,11 +100,17 @@ class AppFrame:
         frame = ttk.Frame(master, relief=tk.SUNKEN)
 
         row = 0
-        for column, provider in enumerate(providers):
+        for column, model in enumerate(list(MODELS.values())):
+            model_name = model.name
+            if column == 0:
+                self.model_name.set(model_name)
             radio = ttk.Radiobutton(
-                frame, text=provider, variable=self.provider, value=provider
+                frame,
+                text=model_name,
+                variable=self.model_name,
+                value=model_name,
             )
-            radio.grid(row=row, column=column, sticky=tk.E, padx=PAD, pady=PAD)
+            radio.grid(row=row, column=column, sticky=tk.W, padx=PAD, pady=PAD)
         return frame
 
     def _file_frame(self, master: tk.Frame) -> tk.Frame:
@@ -135,18 +127,13 @@ class AppFrame:
         button = IconButton(frame, txt.OPEN, "open", self._get_question_file)
         button.grid(row=row, column=2, padx=PAD, pady=Pad.S)
 
-        # button = IconButton(
-        #     frame, txt.CREATE, "create", self._create_question_file
-        # )
-        button.grid(row=row, column=3, padx=PAD, pady=Pad.S)
-
         return frame
 
     def _domain_frame(self, master: tk.Frame) -> tk.PanedWindow:
         frame = ttk.Frame(master, relief=tk.SUNKEN)
 
         row = 0
-        for column, domain in enumerate(domains):
+        for column, domain in enumerate(list(SYSTEM_PROMPTS)):
             radio = ttk.Radiobutton(
                 frame, text=domain, variable=self.domain, value=domain
             )
@@ -243,10 +230,10 @@ class AppFrame:
 
     def _get_response(self, system: str, prompt: str) -> str:
         """Dispatch prompt to the selected AI provider."""
-        provider = self.provider.get()
-        handler = PROVIDER_HANDLERS.get(provider)
+        model_name = self.model_name.get()
+        handler = MODELS.get(model_name).handler_function
         if handler is None:
-            raise ValueError(f"Unknown provider: {provider}")
+            raise ValueError(f"Unknown model: {model_name}")
         return handler(system, prompt)
 
     def _save_response(
@@ -259,16 +246,6 @@ class AppFrame:
         )
 
     def _get_question_file(self, *args) -> None:
-        # initialfile = self.question_file.get()
-
-        # initialdir = Path(initialfile).parent if initialfile else QUESTION_DIR
-        # question_file = filedialog.askopenfilename(
-        #     initialdir=initialdir,
-        #     initialfile=initialfile,
-        #     filetypes=TXT_FILE_TYPES,
-        # )
-        # if question_file:
-        #     self.question_file.set(question_file)
         subprocess.call([EDITOR, str(self.question_file.get())])
 
     def _paste(self, *args) -> None:
@@ -306,14 +283,6 @@ class AppFrame:
     def _add_separator_to_question(self, *args) -> None:
         with open(self.question_file.get(), "a") as f_question:
             f_question.write(SEPARATOR + "\n")
-
-    # def _create_question_file(self, *args) -> None:
-    #     try:
-    #         with open(self.question_file.get(), "w") as f_question:
-    #             f_question.write("")
-    #             subprocess.call([EDITOR, str(self.question_file.get())])
-    #     except FileNotFoundError as e:
-    #         messagebox.showerror("Error", f"Failed to create file: {e}")
 
     def _clear(self, *args) -> None:
         self.text.delete("1.0", tk.END)

@@ -1,5 +1,6 @@
 """Module caller for AI Interface."""
 
+from ai_api.forms.frm_billing import BillingFrame
 from ai_api.forms.frm_config import ConfigFrame
 from ai_api.forms.frm_main import AppFrame
 
@@ -52,6 +53,7 @@ class ModuleCaller:
         modules = {
             "main": self._main,
             "config": self._config,
+            "billing": self._billing,
         }
 
         if module == "-h":
@@ -82,4 +84,11 @@ class ModuleCaller:
         Open the configuration dialog and wait until it is closed.
         """
         dlg = ConfigFrame(self)
+        self.root.wait_window(dlg.root)
+
+    def _billing(self) -> None:
+        """
+        Open the billing dialog and wait until it is closed.
+        """
+        dlg = BillingFrame(self)
         self.root.wait_window(dlg.root)
