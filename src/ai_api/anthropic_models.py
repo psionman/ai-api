@@ -10,7 +10,7 @@ load_dotenv()
 client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
 
 
-def prompt_claude(system: str, prompt: str) -> str:
+def anthropic_prompt(system: str, prompt: str) -> str:
     message = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=1024,

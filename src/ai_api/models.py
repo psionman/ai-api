@@ -4,14 +4,14 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ai_api.claude import prompt_claude
+from ai_api.anthropic_models import anthropic_prompt
 from ai_api.constants import USER_DATA_FILE
-from ai_api.open_ai import prompt_chatgpt
+from ai_api.open_ai_models import open_ai_prompt
 
 # Registry of available prompt functions
 PROMPT_REGISTRY: dict[str, Callable] = {
-    "prompt_claude": prompt_claude,
-    "prompt_chatgpt": prompt_chatgpt,
+    "anthropic": anthropic_prompt,
+    "openai": open_ai_prompt,
 }
 
 

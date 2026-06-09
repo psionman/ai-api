@@ -10,7 +10,7 @@ load_dotenv()
 client = OpenAI()  # reads OPENAI_API_KEY env var
 
 
-def prompt_chatgpt(
+def open_ai_prompt(
     system: str,
     prompt: str,
     model: str = "gpt-4o",
