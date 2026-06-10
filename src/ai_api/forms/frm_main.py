@@ -231,10 +231,10 @@ class AppFrame:
     def _get_response(self, system: str, prompt: str) -> str:
         """Dispatch prompt to the selected AI provider."""
         model_name = self.model_name.get()
-        handler = MODELS.get(model_name).handler_function
-        if handler is None:
-            raise ValueError(f"Unknown model: {model_name}")
-        return handler(system, prompt)
+        prompt_class = MODELS.get(model_name).prompt_class
+        prompt_class.system = system
+        prompt_class.prompt = prompt
+        return prompt_class.send()
 
     def _save_response(
         self, prompt: str, response: str, file_path: Path

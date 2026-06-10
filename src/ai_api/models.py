@@ -1,17 +1,18 @@
 # models.py
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 
-from ai_api.anthropic_models import anthropic_prompt
 from ai_api.constants import USER_DATA_FILE
-from ai_api.open_ai_models import open_ai_prompt
+from ai_api.prompts import (
+    AnthropicPrompt,
+    OpenAIPrompt,
+    Prompt,
+)
 
-# Registry of available prompt functions
-PROMPT_REGISTRY: dict[str, Callable] = {
-    "anthropic": anthropic_prompt,
-    "openai": open_ai_prompt,
+PROMPT_CLASSES: dict[str, Prompt] = {
+    "anthropic": AnthropicPrompt,
+    "openai": OpenAIPrompt,
 }
 
 
@@ -48,7 +49,10 @@ class Model:
         self.model = model
         self.costs = costs
         self.handler = handler
-        self.handler_function = PROMPT_REGISTRY[handler]
+        self.prompt_class = PROMPT_CLASSES[handler](
+            model,
+        )
+        print(self.prompt_class)
 
     def serialize(self) -> dict:
         return {
