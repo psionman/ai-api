@@ -3,17 +3,8 @@
 import json
 from dataclasses import dataclass
 
-from ai_api.constants import USER_DATA_FILE
-from ai_api.prompts import (
-    AnthropicPrompt,
-    OpenAIPrompt,
-    Prompt,
-)
-
-PROMPT_CLASSES: dict[str, Prompt] = {
-    "anthropic": AnthropicPrompt,
-    "openai": OpenAIPrompt,
-}
+from ai_api.constants import MODELS_FILE
+from ai_api.providers import PROVIDERS
 
 
 @dataclass
@@ -42,17 +33,12 @@ class Model:
         provider: str,
         model: str,
         costs: UsageCosts,
-        handler: str,
     ):
         self.name = name
         self.provider = provider
         self.model = model
         self.costs = costs
-        self.handler = handler
-        self.prompt_class = PROMPT_CLASSES[handler](
-            model,
-        )
-        print(self.prompt_class)
+        self.prompt_class = PROVIDERS[provider].prompt_class(model)
 
     def serialize(self) -> dict:
         return {
@@ -60,7 +46,6 @@ class Model:
             "model": self.model,
             "provider": self.provider,
             "costs": self.costs.serialize(),
-            "handler": self.handler,
         }
 
     @classmethod
@@ -70,12 +55,11 @@ class Model:
             model=data["model"],
             provider=data["provider"],
             costs=UsageCosts.deserialize(data["costs"]),
-            handler=data["handler"],
         )
 
 
 def get_models() -> list[Model]:
-    with open(USER_DATA_FILE) as f:
+    with open(MODELS_FILE) as f:
         data = json.load(f)
         models = {}
         for item in data:
@@ -85,9 +69,19 @@ def get_models() -> list[Model]:
         return models
 
 
+def delete_model(model: Model) -> None:
+    del MODELS[model.name]
+    save_models(list(MODELS.values()))
+
+
+def save_model(model: Model) -> None:
+    MODELS[model.name] = model
+    save_models(list(MODELS.values()))
+
+
 def save_models(models: list[Model]) -> None:
     output = [model.serialize() for model in models]
-    with open(USER_DATA_FILE, "w") as f:
+    with open(MODELS_FILE, "w") as f:
         json.dump(output, f)
 
 

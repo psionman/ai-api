@@ -3,11 +3,9 @@
 import csv
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
-from ai_api.constants import USAGE_FILE, USER_DATA_DIR
+from ai_api.constants import USAGE_FILE
 
-PATH = Path(USER_DATA_DIR, USAGE_FILE)
 FIELD_NAMES = ["timestamp", "provider", "input_tokens", "output_tokens"]
 
 
@@ -46,8 +44,8 @@ class Usage:
         self._write_csv_file()
 
     def _write_csv_file(self):
-        write_header = not PATH.exists()
-        with open(PATH, "a", newline="", encoding="utf-8") as f_csv:
+        write_header = not USAGE_FILE.exists()
+        with open(USAGE_FILE, "a", newline="", encoding="utf-8") as f_csv:
             writer = csv.DictWriter(f_csv, fieldnames=FIELD_NAMES)
             if write_header:
                 writer.writeheader()
@@ -56,11 +54,11 @@ class Usage:
 
 def load_usage():
     """Load usage data from the CSV file."""
-    if not PATH.exists():
+    if not USAGE_FILE.exists():
         return []
 
     usages = []
-    with open(PATH, newline="", encoding="utf-8") as f_csv:
+    with open(USAGE_FILE, newline="", encoding="utf-8") as f_csv:
         reader = csv.DictReader(f_csv)
         for row in reader:
             usage = Usage()

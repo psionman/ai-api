@@ -15,11 +15,16 @@ EDITOR = "kate"
 
 # Paths
 CONFIG_PATH = Path(user_config_dir(APP_NAME, APP_AUTHOR), "config.toml")
-USER_DATA_DIR = user_data_dir(APP_NAME, APP_AUTHOR)
-USER_DATA_FILE_NAME = "data.json"
-USER_DATA_FILE = Path(USER_DATA_DIR, USER_DATA_FILE_NAME)
+USER_DATA_DIR = Path(user_data_dir(APP_NAME, APP_AUTHOR))
+USER_DATA_DIR.mkdir(exist_ok=True)
+
+USER_DATA_FILE = Path(USER_DATA_DIR, "data.json")
+
+MODELS_FILE = Path(USER_DATA_DIR, "models.json")
+PROVIDERS_FILE = Path(USER_DATA_DIR, "providers.json")
+
 HOME = str(Path.home())
-USAGE_FILE = "usage.csv"
+USAGE_FILE = Path(USER_DATA_DIR, "usage.csv")
 
 OUTPUT_DIR = Path(USER_DATA_DIR, "ai_output")
 OUTPUT_DIR.mkdir(exist_ok=True)
