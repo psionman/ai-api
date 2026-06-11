@@ -12,6 +12,7 @@ load_dotenv()  # loads OPENAI_API_KEY and ANTHROPIC_API_KEY
 class Prompt:
     def __init__(self, model: str):
         self.model = model
+        self.provider = ""
         self._client = None
         self._system = ""
         self._prompt = ""
@@ -50,7 +51,8 @@ class Prompt:
         usage_record = Usage(
             input=input_usage,
             output=output_usage,
-            provider=self.model,
+            provider=self.provider,
+            model=self.model,
         )
         usage_record.save()
 
@@ -59,6 +61,7 @@ class OpenAIPrompt(Prompt):
     def __init__(self, model: str):
         super().__init__(model)
         self.client = OpenAI()
+        self.provider = "Open AI"
 
     def send(self) -> str:
         """Send a prompt to OpenAI and return the response."""
@@ -86,6 +89,7 @@ class AnthropicPrompt(Prompt):
     def __init__(self, model: str):
         super().__init__(model)
         self.client = Anthropic()
+        self.provider = "Anthropic"
 
     def send(self) -> str:
         """Send a prompt to Anthropic and return the response."""

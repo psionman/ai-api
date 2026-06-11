@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
 
-from psiutils.buttons import ButtonFrame
-from psiutils.constants import PAD, Mode
+from psiutils.buttons import ButtonFrame, IconButton
+from psiutils.constants import PAD, Mode, WidgetState
 from psiutils.menus import Menu, MenuItem
 from psiutils.treeview import sort_treeview
 from psiutils.utilities import window_resize
@@ -16,7 +16,7 @@ from ai_api.config import read_config
 from ai_api.constants import APP_TITLE
 from ai_api.forms.frm_model import ModelEditFrame
 from ai_api.models import MODELS, delete_model
-from ai_api.providers import PROVIDERS
+from ai_api.providers import PROVIDERS, save_provider
 from ai_api.text import Text
 
 txt = Text()
@@ -51,13 +51,16 @@ class BillingFrame:
         self.parent = parent
         self.config = read_config()
         self.selected_model = None
+        self.provider = None
 
         # tk variables
-        self.provider = tk.StringVar()
+        self.provider_name = tk.StringVar()
         self.balance = tk.StringVar(value="0.00")
         self.last_updated = tk.StringVar(
             value=datetime.now().strftime(DATETIME_FORMAT)
         )
+        self.usage = tk.StringVar(value="0.00")
+        self.remaining = tk.StringVar(value="0.00")
 
         self.show()
         self._update_provider()
@@ -95,7 +98,6 @@ class BillingFrame:
 
     def _main_frame(self, master: tk.Frame) -> ttk.Frame:
         frame = ttk.Frame(master)
-        frame.rowconfigure(1, weight=1)
         frame.columnconfigure(0, weight=1)
 
         row = 0
@@ -103,10 +105,15 @@ class BillingFrame:
         provider_frame.grid(row=row, column=0, sticky=tk.EW)
 
         row += 1
-        # details_frame = self._details_frame(frame)
-        # details_frame.grid(row=row, column=0, sticky=tk.EW)
+        details_frame = self._details_frame(frame)
+        details_frame.grid(row=row, column=0, sticky=tk.EW, padx=PAD, pady=PAD)
+
+        row += 1
         models_frame = self._models_frame(frame)
-        models_frame.grid(row=row, column=0, sticky=tk.NSEW)
+        frame.rowconfigure(row, weight=1)
+        models_frame.grid(
+            row=row, column=0, sticky=tk.NSEW, padx=PAD, pady=PAD
+        )
 
         return frame
 
@@ -116,15 +123,73 @@ class BillingFrame:
         row = 0
         for column, provider in enumerate(list(PROVIDERS.keys())):
             if column == 0:
-                self.provider.set(provider)
+                self.provider_name.set(provider)
+                self.provider = PROVIDERS[provider]
             radio = ttk.Radiobutton(
                 frame,
                 text=provider,
-                variable=self.provider,
+                variable=self.provider_name,
                 value=provider,
                 command=self._update_provider,
             )
             radio.grid(row=row, column=column, sticky=tk.W, padx=PAD, pady=PAD)
+        return frame
+
+    def _details_frame(self, master: tk.Frame) -> tk.Frame:
+        frame = ttk.Frame(master)
+
+        row = 0
+        label = ttk.Label(frame, text="Balance")
+        label.grid(row=row, column=0, sticky=tk.W, padx=PAD)
+        entry = ttk.Entry(
+            frame,
+            textvariable=self.balance,
+            justify="right",
+            width=7,
+        )
+        entry.grid(row=row, column=1, sticky=tk.W, padx=PAD)
+
+        label = ttk.Label(frame, text="Last updated")
+        label.grid(row=row, column=2, sticky=tk.W, padx=PAD)
+        entry = ttk.Entry(
+            frame,
+            textvariable=self.last_updated,
+            state=WidgetState.READONLY,
+            takefocus=False,
+        )
+        entry.grid(row=row, column=3, sticky=tk.W, padx=PAD)
+
+        button = IconButton(frame, txt.SAVE, "save", self._save_balance)
+        button.grid(row=row, column=4, sticky=tk.W, padx=PAD)
+
+        row += 1
+        label = ttk.Label(frame, text="Usage")
+        label.grid(row=row, column=0, sticky=tk.W, padx=PAD)
+
+        entry = ttk.Entry(
+            frame,
+            textvariable=self.usage,
+            state=WidgetState.READONLY,
+            takefocus=False,
+            justify="right",
+            width=7,
+        )
+        entry.grid(row=row, column=1, sticky=tk.W, padx=PAD)
+
+        row += 1
+        label = ttk.Label(frame, text="Remaining")
+        label.grid(row=row, column=0, sticky=tk.W, padx=PAD)
+
+        entry = ttk.Entry(
+            frame,
+            textvariable=self.remaining,
+            state=WidgetState.READONLY,
+            takefocus=False,
+            justify="right",
+            width=7,
+        )
+        entry.grid(row=row, column=1, sticky=tk.W, padx=PAD)
+
         return frame
 
     def _models_frame(self, master: tk.Frame) -> tk.Frame:
@@ -172,7 +237,7 @@ class BillingFrame:
     def _populate_model_tree(self) -> None:
         self.model_tree.delete(*self.model_tree.get_children())
         for name, model in sorted(MODELS.items()):
-            if model.provider != self.provider.get():
+            if model.provider != self.provider_name.get():
                 continue
             values = (
                 name,
@@ -204,14 +269,8 @@ class BillingFrame:
         context_menu.enable(False)
         return context_menu
 
-    def _update_provider(self) -> None:
-        self._populate_model_tree()
-
-    def _save_balance(self, *args) -> None:
-        pass
-
     def _new_model(self, *args) -> None:
-        dlg = ModelEditFrame(self, Mode.NEW, provider=self.provider.get())
+        dlg = ModelEditFrame(self, Mode.NEW, provider=self.provider_name.get())
         self.root.wait_window(dlg.root)
         self._populate_model_tree()
 
@@ -219,7 +278,7 @@ class BillingFrame:
         dlg = ModelEditFrame(
             self,
             Mode.EDIT,
-            provider=self.provider.get(),
+            provider=self.provider_name.get(),
             model=self.selected_model,
         )
         self.root.wait_window(dlg.root)
@@ -233,6 +292,26 @@ class BillingFrame:
         if dlg:
             delete_model(self.selected_model)
             self._populate_model_tree()
+
+    def _update_provider(self) -> None:
+        self.provider = PROVIDERS[self.provider_name.get()]
+        self.balance.set(f"${self.provider.balance:,.2f}")
+        self.last_updated.set(
+            self.provider.last_updated.strftime("%Y-%m-%d %H:%M:%S")
+        )
+        self._populate_model_tree()
+        self._update_usage()
+
+    def _save_balance(self, *args) -> None:
+        self.provider.balance = self.balance.get()
+        self.provider.last_updated = datetime.now()
+        save_provider(self.provider)
+        self._update_usage()
+
+    def _update_usage(self) -> None:
+        usage = self.provider.usage
+        self.usage.set(f"${usage:,.2f}")
+        self.remaining.set(f"${self.provider.remaining:,.2f}")
 
     def _dismiss(self, *args) -> None:
         self.root.destroy()

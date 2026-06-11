@@ -101,14 +101,13 @@ class AppFrame:
 
         row = 0
         for column, model in enumerate(list(MODELS.values())):
-            model_name = model.name
             if column == 0:
-                self.model_name.set(model_name)
+                self.model_name.set(model.name)
             radio = ttk.Radiobutton(
                 frame,
-                text=model_name,
+                text=model.name,
                 variable=self.model_name,
-                value=model_name,
+                value=model.name,
             )
             radio.grid(row=row, column=column, sticky=tk.W, padx=PAD, pady=PAD)
         return frame
@@ -197,8 +196,9 @@ class AppFrame:
         try:
             with WaitCursor(self.root):
                 response = self._get_response(system, prompt)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+        except FileExistsError as e:
+            # messagebox.showerror("Error", str(e))
+            print(e)
             return
 
         self._display_response(response, file_path)

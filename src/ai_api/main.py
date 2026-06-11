@@ -38,7 +38,7 @@ def main() -> None:
             if dlg.invalid:
                 logger.error("Invalid module", module=args.module)
                 AppFrame(root)
-        except Exception as e:
+        except ModuleNotFoundError as e:
             logger.error(f"Failed to load module '{args.module}'", error=e)
             AppFrame(root)
     else:
