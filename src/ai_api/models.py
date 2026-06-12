@@ -38,10 +38,13 @@ class Model:
         self.provider = provider
         self.model = model
         self.costs = costs
-        self.prompt_class = PROVIDERS[provider].prompt_class(name)
+        # self.prompt_class = PROVIDERS[provider].prompt_class(name)
 
     def __repr__(self) -> str:
-        return f"Model(name='{self.name}', provider='{self.provider}', model='{self.model}', costs={self.costs})"
+        return (
+            f"Model(name='{self.name}', provider='{self.provider}', "
+            f"model='{self.model}', costs={self.costs})"
+        )
 
     def serialize(self) -> dict:
         return {

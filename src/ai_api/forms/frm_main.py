@@ -19,6 +19,7 @@ from ai_api.main_menu import MainMenu
 from ai_api.models import MODELS
 from ai_api.system_text import SYSTEM_PROMPTS
 from ai_api.text import Text
+from ai_api.providers import PROVIDERS
 
 txt = Text()
 
@@ -231,10 +232,13 @@ class AppFrame:
     def _get_response(self, system: str, prompt: str) -> str:
         """Dispatch prompt to the selected AI provider."""
         model_name = self.model_name.get()
-        prompt_class = MODELS.get(model_name).prompt_class
-        prompt_class.system = system
-        prompt_class.prompt = prompt
-        return prompt_class.send()
+        model = MODELS.get(model_name)
+        provider = PROVIDERS.get(model.provider)
+        prompt_instance = provider.prompt_class()
+        prompt_instance.model = model
+        prompt_instance.system = system
+        prompt_instance.prompt = prompt
+        return prompt_instance.send()
 
     def _save_response(
         self, prompt: str, response: str, file_path: Path

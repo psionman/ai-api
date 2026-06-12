@@ -1,8 +1,10 @@
-# openai.py
+# propmpts.py
 
 from anthropic import Anthropic
+from anthropic import RateLimitError as AnthropicRateLimitError
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai import RateLimitError as OpenAIRateLimitError
 
 from ai_api.usage import Usage
 
@@ -10,8 +12,8 @@ load_dotenv()  # loads OPENAI_API_KEY and ANTHROPIC_API_KEY
 
 
 class Prompt:
-    def __init__(self, model: str):
-        self.model = model
+    def __init__(self):
+        self._model = None
         self.provider = ""
         self._client = None
         self._system = ""
@@ -20,8 +22,13 @@ class Prompt:
     def __repr__(self) -> str:
         return f"Prompt(model='{self.model}')"
 
-    def send(self) -> str:
-        return self._send_prompt()
+    @property
+    def model(self) -> object:
+        return self._model
+
+    @model.setter
+    def model(self, value: object) -> None:
+        self._model = value
 
     @property
     def client(self) -> object:
@@ -58,8 +65,8 @@ class Prompt:
 
 
 class OpenAIPrompt(Prompt):
-    def __init__(self, model: str):
-        super().__init__(model)
+    def __init__(self):
+        super().__init__()
         self.client = OpenAI()
         self.provider = "Open AI"
 
@@ -67,13 +74,13 @@ class OpenAIPrompt(Prompt):
         """Send a prompt to OpenAI and return the response."""
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=self.model.model,
                 messages=[
                     {"role": "system", "content": self.system},
                     {"role": "user", "content": self.prompt},
                 ],
             )
-        except self.client._exceptions.RateLimitError as e:
+        except OpenAIRateLimitError as e:
             if "insufficient_quota" in str(e):
                 raise RuntimeError(
                     "OpenAI quota exceeded. Please top up your account."
@@ -86,21 +93,23 @@ class OpenAIPrompt(Prompt):
 
 
 class AnthropicPrompt(Prompt):
-    def __init__(self, model: str):
-        super().__init__(model)
+    # where is this created?
+    def __init__(self):
+        super().__init__()
         self.client = Anthropic()
         self.provider = "Anthropic"
+        print("Anthropic client initialized", self._model)
 
     def send(self) -> str:
         """Send a prompt to Anthropic and return the response."""
         try:
             message = self.client.messages.create(
-                model=self.model,
+                model=self.model.model,
                 max_tokens=1024,
                 system=self.system,
                 messages=[{"role": "user", "content": self.prompt}],
             )
-        except self.client._exceptions.RateLimitError as e:
+        except AnthropicRateLimitError as e:
             raise RuntimeError(
                 "Anthropic quota exceeded. Please check your account."
             ) from e
